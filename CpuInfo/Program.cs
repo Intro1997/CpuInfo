@@ -50,6 +50,8 @@ namespace Application
             if (options.InfoList == null ||
                 options.InfoList.Count() == 0)
             { return; }
+            ValueTuple<Int32, Int32> beginConsolePos = Console.GetCursorPosition();
+            ValueTuple<Int32, Int32> lastConsolePos = beginConsolePos;
             int sleepTime = options.Time;
             if (sleepTime < 1000) { sleepTime = 1000; }
 
@@ -89,13 +91,17 @@ namespace Application
                     hardware.Update();
                 }
                 Console.Write(outString + "END\n");
+                lastConsolePos = Console.GetCursorPosition();
                 Thread.Sleep(sleepTime);
                 if (options.Flush)
                 {
-                    Console.SetCursorPosition(0, 0);
+                    Console.SetCursorPosition(beginConsolePos.Item1, beginConsolePos.Item2);
                 }
+
                 outString = "";
             }
+
+            Console.SetCursorPosition(0, lastConsolePos.Item2 + 1);
             try
             {
                 computer.Close();
