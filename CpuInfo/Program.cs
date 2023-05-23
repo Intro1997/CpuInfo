@@ -1,4 +1,5 @@
 ﻿using LibreHardwareMonitor.Hardware;
+using CommandLine;
 
 namespace Application
 {
@@ -6,12 +7,58 @@ namespace Application
     {
         public static bool loop = true;
         public static Mutex loopLock = new Mutex();
-        public static void CpuInfoLoop()
+        public class Options
         {
+            [Option('f', "flush", Required = false, HelpText = "Flush console each output.", Default = false)]
+            public bool Flush { get; set; }
+
+            [Option('i', "info-list", Required = true, HelpText = "All cpu info that you want to output.")]
+            public IEnumerable<string>? InfoList { get; set; }
+
+            [Option('t', "time", Required = false, HelpText = "Set millisecond internal time of update, cannot less than 1000.", Default = 1000)]
+            public int Time { get; set; }
+
+            [Option('e', "exit-sign", Required = false, HelpText = "Set exit input sign, exp: -e exit means" +
+                " when you input 'exit' in console, the application will exit.", Default = "")]
+            public string? ExitSign { get; set; }
+        }
+
+        public static List<SensorType> getRequestType(IEnumerable<string> infoList)
+        {
+            List<SensorType> sensors = new List<SensorType>();
+            foreach (var info in infoList)
+            {
+                switch (info.ToUpper())
+                {
+                    case "TEMP":
+                        {
+                            sensors.Add(SensorType.Temperature);
+                            break;
+                        }
+                    case "CLOCK":
+                        {
+                            sensors.Add(SensorType.Clock);
+                            break;
+                        }
+                }
+            }
+            return sensors;
+        }
+
+        public static void CpuInfoLoop(Options options)
+        {
+            if (options.InfoList == null ||
+                options.InfoList.Count() == 0)
+            { return; }
+            int sleepTime = options.Time;
+            if (sleepTime < 1000) { sleepTime = 1000; }
+
             Computer computer = new Computer();
             computer.IsCpuEnabled = true;
             computer.Open();
+
             String outString = "";
+            List<SensorType> sensors = getRequestType(options.InfoList);
             while (true)
             {
                 loopLock.WaitOne();
@@ -22,11 +69,9 @@ namespace Application
                 loopLock.ReleaseMutex();
                 foreach (var hardware in computer.Hardware)
                 {
-
                     foreach (var sensor in hardware.Sensors)
                     {
-
-                        if ((sensor.SensorType == SensorType.Temperature || sensor.SensorType == SensorType.Clock) && sensor.Value.HasValue)
+                        if (sensors.IndexOf(sensor.SensorType) != -1 && sensor.Value.HasValue)
                         {
                             String typeName = "";
                             switch (sensor.SensorType)
@@ -44,7 +89,11 @@ namespace Application
                     hardware.Update();
                 }
                 Console.Write(outString + "END\n");
-                Thread.Sleep(1000);
+                Thread.Sleep(sleepTime);
+                if (options.Flush)
+                {
+                    Console.SetCursorPosition(0, 0);
+                }
                 outString = "";
             }
             try
@@ -59,19 +108,46 @@ namespace Application
         }
         static void Main(string[] args)
         {
-            Thread t = new Thread(CpuInfoLoop);
-            t.Start();
-            string line = "";
-            while (line != "exit")
+            string? es = "";
+            Options options;
+            try
             {
-                line = Console.ReadLine();
-                if (line == "exit")
+                options = Parser.Default.ParseArguments<Options>(args).Value;
+                var list = options.InfoList; // try to get
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                return;
+            }
+
+            Thread t = new Thread(() => CpuInfoLoop(options));
+            t.Start();
+            string? line = "";
+
+            try
+            {
+                es = options.ExitSign;
+            }
+            catch (Exception e)
+            {
+                es = "";
+            }
+
+            if (es != null && es != "")
+            {
+                while (line != es)
                 {
-                    loopLock.WaitOne();
-                    loop = false;
-                    loopLock.ReleaseMutex();
+                    line = Console.ReadLine();
+                    if (line != null && line == es)
+                    {
+                        loopLock.WaitOne();
+                        loop = false;
+                        loopLock.ReleaseMutex();
+                    }
                 }
             }
+
         }
     }
 }
