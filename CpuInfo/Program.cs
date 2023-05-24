@@ -6,7 +6,8 @@ namespace Application
     class CpuInfo
     {
         public static bool loop = true;
-        public static Mutex loopLock = new Mutex();
+        public static Mutex loopLock = new Mutex(false);
+        public static Mutex exitLock = new Mutex(false);
         public class Options
         {
             [Option('f', "flush", Required = false, HelpText = "Flush console each output.", Default = false)]
@@ -50,8 +51,15 @@ namespace Application
             if (options.InfoList == null ||
                 options.InfoList.Count() == 0)
             { return; }
-            ValueTuple<Int32, Int32> beginConsolePos = Console.GetCursorPosition();
-            ValueTuple<Int32, Int32> lastConsolePos = beginConsolePos;
+            ValueTuple<Int32, Int32> beginConsolePos = (0, 0);
+            ValueTuple<Int32, Int32> lastConsolePos = (0, 0);
+
+            if (options.Flush)
+            {
+                beginConsolePos = Console.GetCursorPosition();
+                lastConsolePos = beginConsolePos;
+            }
+
             int sleepTime = options.Time;
             if (sleepTime < 1000) { sleepTime = 1000; }
 
@@ -61,11 +69,13 @@ namespace Application
 
             String outString = "";
             List<SensorType> sensors = getRequestType(options.InfoList);
+            exitLock.WaitOne();
             while (true)
             {
                 loopLock.WaitOne();
                 if (!loop)
                 {
+                    loopLock.ReleaseMutex();
                     break;
                 }
                 loopLock.ReleaseMutex();
@@ -91,17 +101,21 @@ namespace Application
                     hardware.Update();
                 }
                 Console.Write(outString + "END\n");
-                lastConsolePos = Console.GetCursorPosition();
                 Thread.Sleep(sleepTime);
                 if (options.Flush)
                 {
+                    lastConsolePos = Console.GetCursorPosition();
                     Console.SetCursorPosition(beginConsolePos.Item1, beginConsolePos.Item2);
                 }
 
                 outString = "";
             }
 
-            Console.SetCursorPosition(0, lastConsolePos.Item2 + 1);
+            if (options.Flush)
+            {
+                Console.SetCursorPosition(0, lastConsolePos.Item2 + 1);
+            }
+
             try
             {
                 computer.Close();
@@ -110,27 +124,66 @@ namespace Application
             {
                 Console.WriteLine(e);
             }
-
+            exitLock.ReleaseMutex();            
         }
-        static void Main(string[] args)
+
+        public static Options? getOptions(string[] args)
         {
-            string? es = "";
             Options options;
             try
             {
                 options = Parser.Default.ParseArguments<Options>(args).Value;
                 var list = options.InfoList; // try to get
+                return options;
             }
             catch (Exception e)
             {
                 Console.WriteLine(e);
+                return null;
+            }
+        }
+
+        private static void processExit()
+        {
+            AppDomain appd = AppDomain.CurrentDomain;
+
+            appd.ProcessExit += (s, e) =>
+            {
+                loopLock.WaitOne();
+                loop = false;
+                loopLock.ReleaseMutex();
+
+                exitLock.WaitOne();
+                exitLock.ReleaseMutex();
+            };
+            Console.CancelKeyPress += (sender, e) =>
+            {
+                e.Cancel = false;
+                loopLock.WaitOne();
+                loop = false;
+                loopLock.ReleaseMutex();
+
+                exitLock.WaitOne();
+                exitLock.ReleaseMutex();
+            };
+        }
+
+
+        static void Main(string[] args)
+        {
+            processExit();
+
+            Options? options = getOptions(args);
+            if (options == null)
+            {
                 return;
             }
 
             Thread t = new Thread(() => CpuInfoLoop(options));
             t.Start();
-            string? line = "";
 
+            string? es = "";
+            string? line = "";
             try
             {
                 es = options.ExitSign;
@@ -144,7 +197,7 @@ namespace Application
             {
                 while (line != es)
                 {
-                    line = Console.ReadLine();
+                    line = Console.ReadLine();                    
                     if (line != null && line == es)
                     {
                         loopLock.WaitOne();
@@ -153,7 +206,6 @@ namespace Application
                     }
                 }
             }
-
         }
     }
 }

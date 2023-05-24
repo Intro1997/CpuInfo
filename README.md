@@ -1,8 +1,12 @@
 # CPU INFO
+
 此项目借助 https://github.com/openhardwaremonitor/openhardwaremonitor dll 获取 CPU 信息，由于主要用于 https://github.com/Intro1997/PerfMonitor 所以仅支持获取 CPU 的 TEMP CLOCK
+
 # 使用说明：
+
 下载后需要使用管理员身份打开
 CLI 参数如下
+
 ```
 -f, --flush        (Default: false) Flush console each output.
 -i, --info-list    Required. All cpu info that you want to output.
@@ -12,6 +16,9 @@ CLI 参数如下
 --help             Display this help screen.
 --version          Display version information.
 ```
-其中 time 用 int 存储；当 -e 没有被指定时，通过 ctrl+c 或右上角 x 的方式关闭进程会导致 CpuInfo.sys 持续被占用。
+
+其中 time 用 int 存储。
+
 # 开发说明
+
 1. 命令行参数提取工具使用的是 https://github.com/commandlineparser/commandline，需要配置 nuget 使用，使用方法参照 https://learn.microsoft.com/zh-cn/nuget/quickstart/install-and-use-a-package-in-visual-studio
