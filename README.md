@@ -1,6 +1,9 @@
 # CPU INFO
 
-此项目借助 [https://github.com/openhardwaremonitor/openhardwaremonitor](https://github.com/openhardwaremonitor/openhardwaremonitor) dll 获取 CPU 信息，目前支持获取 CPU 的 TEMP CLOCK
+此项目借助 [https://github.com/openhardwaremonitor/openhardwaremonitor](https://github.com/openhardwaremonitor/openhardwaremonitor) dll 获取 CPU 信息，目前支持获取以下 CPU 信息：
+
+1. Temperature
+2. Clock
 
 # 使用说明：
 
@@ -17,7 +20,18 @@ CLI 参数如下
 --version          Display version information.
 ```
 
-其中 time 用 int 存储。
+注意：
+
+1. time 使用 int 存储，当设置的值大于上限时默认使用 1000ms
+2. -i 目前支持以下参数（大小写不敏感）：
+   - TEMP : (Temperature)
+   - CLOCK : (Clock)
+
+Example:
+```
+CpuInfo.exe -i temp clock -e exit -f
+```
+
 
 # 开发说明
 
