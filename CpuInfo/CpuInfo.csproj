@@ -19,4 +19,8 @@
     </Reference>
   </ItemGroup>
 
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="powershell &quot;Compress-Archive -LiteralPath $(ProjectDir)$(OutputPath)CommandLine.dll,$(ProjectDir)$(OutputPath)CpuInfo.dll,$(ProjectDir)$(OutputPath)CpuInfo.exe,$(ProjectDir)$(OutputPath)CpuInfo.runtimeconfig.json,$(ProjectDir)$(OutputPath)LibreHardwareMonitorLib.dll -DestinationPath $(SolutionDir)CpuInfo.zip&quot;" />
+  </Target>
+
 </Project>
