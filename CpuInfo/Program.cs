@@ -51,14 +51,6 @@ namespace Application
             if (options.InfoList == null ||
                 options.InfoList.Count() == 0)
             { return; }
-            ValueTuple<Int32, Int32> beginConsolePos = (0, 0);
-            ValueTuple<Int32, Int32> lastConsolePos = (0, 0);
-
-            if (options.Flush)
-            {
-                beginConsolePos = Console.GetCursorPosition();
-                lastConsolePos = beginConsolePos;
-            }
 
             int sleepTime = options.Time;
             if (sleepTime < 1000) { sleepTime = 1000; }
@@ -79,8 +71,10 @@ namespace Application
                     break;
                 }
                 loopLock.ReleaseMutex();
+                int cpuID = -1;
                 foreach (var hardware in computer.Hardware)
                 {
+                    cpuID++;
                     foreach (var sensor in hardware.Sensors)
                     {
                         if (sensors.IndexOf(sensor.SensorType) != -1 && sensor.Value.HasValue)
@@ -95,25 +89,19 @@ namespace Application
                                     typeName = "Clock";
                                     break;
                             }
-                            outString += String.Format("{4}\"type\": \"{6}\", \"name\": \"{0}\", \"value\": {1}, \"minValue\": {2}, \"maxValue\": {3}{5}\n", sensor.Name, sensor.Value.Value, sensor.Min.Value, sensor.Max.Value, "{", "}", typeName);
+                            outString += String.Format("{0}\"cpuid\": \"{1}\", \"type\": \"{2}\", \"name\": \"{3}\", \"value\": {4}, \"minValue\": {5}, \"maxValue\": {6}{7}\n", "{", cpuID, typeName, sensor.Name, sensor.Value.Value, sensor.Min.Value, sensor.Max.Value, "}");
                         }
                     }
                     hardware.Update();
                 }
-                Console.Write(outString + "END\n");
-                Thread.Sleep(sleepTime);
                 if (options.Flush)
                 {
-                    lastConsolePos = Console.GetCursorPosition();
-                    Console.SetCursorPosition(beginConsolePos.Item1, beginConsolePos.Item2);
+                    Console.Clear();
                 }
+                Console.Write(outString + "END\n");
+                Thread.Sleep(sleepTime);
 
                 outString = "";
-            }
-
-            if (options.Flush)
-            {
-                Console.SetCursorPosition(0, lastConsolePos.Item2 + 1);
             }
 
             try
@@ -124,7 +112,7 @@ namespace Application
             {
                 Console.WriteLine(e);
             }
-            exitLock.ReleaseMutex();            
+            exitLock.ReleaseMutex();
         }
 
         public static Options? getOptions(string[] args)
@@ -197,7 +185,7 @@ namespace Application
             {
                 while (line != es)
                 {
-                    line = Console.ReadLine();                    
+                    line = Console.ReadLine();
                     if (line != null && line == es)
                     {
                         loopLock.WaitOne();
