@@ -89,7 +89,14 @@ namespace Application
                                     typeName = "Clock";
                                     break;
                             }
-                            outString += String.Format("{0}\"cpuid\": \"{1}\", \"type\": \"{2}\", \"name\": \"{3}\", \"value\": {4}, \"minValue\": {5}, \"maxValue\": {6}{7}\n", "{", cpuID, typeName, sensor.Name, sensor.Value.Value, sensor.Min.Value, sensor.Max.Value, "}");
+                            float minValue = 0, maxValue = 0;
+                            if (sensor.Min.HasValue) { 
+                                minValue = sensor.Min.Value;
+                            }
+                            if (sensor.Max.HasValue) { 
+                                maxValue = sensor.Max.Value;
+                            }
+                            outString += String.Format("{0}\"cpuid\": {1}, \"type\": \"{2}\", \"name\": \"{3}\", \"value\": {4}, \"minValue\": {5}, \"maxValue\": {6}{7}\n", "{", cpuID, typeName, sensor.Name, sensor.Value.Value, minValue, maxValue, "}");
                         }
                     }
                     hardware.Update();
