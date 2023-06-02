@@ -1,10 +1,20 @@
 ﻿using LibreHardwareMonitor.Hardware;
 using CommandLine;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Threading;
+using System;
+using System.Linq;
 
 namespace Application
 {
     class CpuInfo
     {
+        private delegate bool ConsoleCtrlDelegate(int sig);
+
+        [DllImport("Kernel32")]
+        private static extern bool SetConsoleCtrlHandler(ConsoleCtrlDelegate handler, bool add);
+
         public static bool loop = true;
         public static Mutex loopLock = new Mutex(false);
         public static Mutex exitLock = new Mutex(false);
@@ -14,14 +24,14 @@ namespace Application
             public bool Flush { get; set; }
 
             [Option('i', "info-list", Required = true, HelpText = "All cpu info that you want to output.")]
-            public IEnumerable<string>? InfoList { get; set; }
+            public IEnumerable<string> InfoList { get; set; }
 
             [Option('t', "time", Required = false, HelpText = "Set millisecond internal time of update, cannot less than 1000.", Default = 1000)]
             public int Time { get; set; }
 
             [Option('e', "exit-sign", Required = false, HelpText = "Set exit input sign, exp: -e exit means" +
                 " when you input 'exit' in console, the application will exit.", Default = "")]
-            public string? ExitSign { get; set; }
+            public string ExitSign { get; set; }
         }
 
         public static List<SensorType> getRequestType(IEnumerable<string> infoList)
@@ -48,8 +58,9 @@ namespace Application
 
         public static void CpuInfoLoop(Options options)
         {
-            if (options.InfoList == null ||
-                options.InfoList.Count() == 0)
+            if (options.InfoList == null)
+            { return; }
+            if (options.InfoList.Count() == 0)
             { return; }
 
             int sleepTime = options.Time;
@@ -90,10 +101,12 @@ namespace Application
                                     break;
                             }
                             float minValue = 0, maxValue = 0;
-                            if (sensor.Min.HasValue) { 
+                            if (sensor.Min.HasValue)
+                            {
                                 minValue = sensor.Min.Value;
                             }
-                            if (sensor.Max.HasValue) { 
+                            if (sensor.Max.HasValue)
+                            {
                                 maxValue = sensor.Max.Value;
                             }
                             outString += String.Format("{0}\"cpuid\": {1}, \"type\": \"{2}\", \"name\": \"{3}\", \"value\": {4}, \"minValue\": {5}, \"maxValue\": {6}{7}\n", "{", cpuID, typeName, sensor.Name, sensor.Value.Value, minValue, maxValue, "}");
@@ -122,7 +135,7 @@ namespace Application
             exitLock.ReleaseMutex();
         }
 
-        public static Options? getOptions(string[] args)
+        public static Options getOptions(string[] args)
         {
             Options options;
             try
@@ -138,19 +151,22 @@ namespace Application
             }
         }
 
+        private static bool OnConsoleClose(int sig)
+        {
+            loopLock.WaitOne();
+            loop = false;
+            loopLock.ReleaseMutex();
+
+            exitLock.WaitOne();
+            exitLock.ReleaseMutex();
+            return false;
+        }
+
         private static void processExit()
         {
+            SetConsoleCtrlHandler(new ConsoleCtrlDelegate(OnConsoleClose), true);
             AppDomain appd = AppDomain.CurrentDomain;
 
-            appd.ProcessExit += (s, e) =>
-            {
-                loopLock.WaitOne();
-                loop = false;
-                loopLock.ReleaseMutex();
-
-                exitLock.WaitOne();
-                exitLock.ReleaseMutex();
-            };
             Console.CancelKeyPress += (sender, e) =>
             {
                 e.Cancel = false;
@@ -167,8 +183,7 @@ namespace Application
         static void Main(string[] args)
         {
             processExit();
-
-            Options? options = getOptions(args);
+            Options options = getOptions(args);
             if (options == null)
             {
                 return;
@@ -177,8 +192,8 @@ namespace Application
             Thread t = new Thread(() => CpuInfoLoop(options));
             t.Start();
 
-            string? es = "";
-            string? line = "";
+            string es = "";
+            string line = "";
             try
             {
                 es = options.ExitSign;
@@ -204,4 +219,3 @@ namespace Application
         }
     }
 }
-

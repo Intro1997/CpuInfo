@@ -1,3 +1,5 @@
 .vs
 CpuInfo/bin
 CpuInfo/obj
+packages
+**/CpuInfo.csproj.user
