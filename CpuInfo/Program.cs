@@ -5,12 +5,13 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System;
 using System.Linq;
+using System.Diagnostics;
 
 namespace Application
 {
     class CpuInfo
     {
-        private delegate bool ConsoleCtrlDelegate(int sig);
+        public delegate bool ConsoleCtrlDelegate(int sig);
 
         [DllImport("Kernel32")]
         private static extern bool SetConsoleCtrlHandler(ConsoleCtrlDelegate handler, bool add);
@@ -18,6 +19,13 @@ namespace Application
         public static bool loop = true;
         public static Mutex loopLock = new Mutex(false);
         public static Mutex exitLock = new Mutex(false);
+        public static List<String> otherSensors = new List<String>();
+        public static CounterSample lastCpuSample = new CounterSample();
+        public static bool firstInUsage = true;
+        public static int osMajorVersion = 0;
+        public static PerformanceCounter cpuCounter = null;
+        public static ConsoleCtrlDelegate consoleCtrl = new ConsoleCtrlDelegate(OnConsoleClose);
+
         public class Options
         {
             [Option('f', "flush", Required = false, HelpText = "Flush console each output.", Default = false)]
@@ -51,9 +59,38 @@ namespace Application
                             sensors.Add(SensorType.Clock);
                             break;
                         }
+                    case "USAGE":
+                        {
+                            otherSensors.Add(info.ToUpper());
+                            break;
+                        }
                 }
             }
             return sensors;
+        }
+
+        public static float getCpuUsage()
+        {
+            // refer to https://github.com/zhongyang219/TrafficMonitor/blob/master/TrafficMonitor/CPUUsage.cpp#L61-#L64
+            if (cpuCounter == null)
+            {
+                if (osMajorVersion >= 10)
+                {
+                    cpuCounter = new PerformanceCounter("Processor Information", "% Processor Utility", "_Total");
+                }
+                else
+                {
+                    cpuCounter = new PerformanceCounter("Processor Information", "% Processor Time", "_Total");
+                }
+                lastCpuSample = cpuCounter.NextSample();
+                return 0.0f;
+            }
+
+            // refer to https://stackoverflow.com/a/36572724/14419237            
+            CounterSample currentValue = cpuCounter.NextSample();
+            float ret = CounterSample.Calculate(lastCpuSample, currentValue);
+            lastCpuSample = currentValue;
+            return ret;
         }
 
         public static void CpuInfoLoop(Options options)
@@ -114,6 +151,18 @@ namespace Application
                     }
                     hardware.Update();
                 }
+                foreach (var sensor in otherSensors)
+                {
+                    switch (sensor)
+                    {
+                        case "USAGE":
+                            {
+                                outString += String.Format("{0}\"type\": \"{1}\", \"value\": {2}{3}\n", "{", "Usage", getCpuUsage(), "}");
+                                break;
+                            }
+
+                    }
+                }
                 if (options.Flush)
                 {
                     Console.Clear();
@@ -125,8 +174,13 @@ namespace Application
             }
 
             try
-            {
+            {                
                 computer.Close();
+                if (cpuCounter != null)
+                {
+                    cpuCounter.Close();
+                    cpuCounter.Dispose();
+                }                
             }
             catch (Exception e)
             {
@@ -152,7 +206,7 @@ namespace Application
         }
 
         private static bool OnConsoleClose(int sig)
-        {
+        {                                    
             loopLock.WaitOne();
             loop = false;
             loopLock.ReleaseMutex();
@@ -164,7 +218,7 @@ namespace Application
 
         private static void processExit()
         {
-            SetConsoleCtrlHandler(new ConsoleCtrlDelegate(OnConsoleClose), true);
+            SetConsoleCtrlHandler(consoleCtrl, true);
             AppDomain appd = AppDomain.CurrentDomain;
 
             Console.CancelKeyPress += (sender, e) =>
@@ -179,9 +233,12 @@ namespace Application
             };
         }
 
-
         static void Main(string[] args)
         {
+            OperatingSystem os = Environment.OSVersion;
+            Version ver = os.Version;
+            osMajorVersion = os.Version.Major;
+
             processExit();
             Options options = getOptions(args);
             if (options == null)

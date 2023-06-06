@@ -26,9 +26,10 @@ CLI 参数如下
 2. -i 目前支持以下参数（大小写不敏感）：
    - TEMP : (Temperature)
    - CLOCK : (Clock)
+   - USAGE : (Usage)
 Example:
 ```
-CpuInfo.exe -i temp clock -e exit -f
+CpuInfo.exe -i temp clock usage -e exit -f
 ```
 3. 传入 -f 后表现为整个 console 刷新，resize 后会滞留一段时间上一次输出信息，下次刷新后表现正常
 
